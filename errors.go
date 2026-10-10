@@ -52,7 +52,10 @@ type SendError struct {
 
 // Error прячет адреса во всём тексте причины: сервер эхом возвращает адрес и в ответах, и в битых строках.
 func (e *SendError) Error() string {
-	cause := addressPattern.ReplaceAllString(e.Err.Error(), "***")
+	cause := "<nil>"
+	if e.Err != nil {
+		cause = addressPattern.ReplaceAllString(e.Err.Error(), "***")
+	}
 
 	return fmt.Sprintf("отправка письма (%s, %s): %s", e.Phase, e.Outcome, cause)
 }

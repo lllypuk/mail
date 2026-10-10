@@ -173,3 +173,10 @@ func TestErrorsWithoutAddressFromServer(t *testing.T) {
 		})
 	}
 }
+
+func TestSendErrorNilCause(t *testing.T) {
+	err := &mail.SendError{Phase: mail.PhaseEnvelope, Code: 550}
+	if got := err.Error(); !strings.Contains(got, "<nil>") {
+		t.Fatalf("Error() = %q, want <nil> cause", got)
+	}
+}
