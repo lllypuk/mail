@@ -81,7 +81,7 @@ type SMTP struct {
 func NewSMTP(cfg Config) (*SMTP, error) {
 	from, err := parseAddress(cfg.From)
 	if err != nil {
-		return nil, fmt.Errorf("%w %q: %w", ErrInvalidFrom, cfg.From, err)
+		return nil, fmt.Errorf("%w: %w", ErrInvalidFrom, err)
 	}
 
 	switch {
@@ -222,11 +222,11 @@ func (s *SMTP) auth(client *smtp.Client) error {
 
 func (s *SMTP) envelope(client *smtp.Client, rcpt string) error {
 	if err := client.Mail(s.from.Address); err != nil {
-		return fmt.Errorf("объявить отправителя %s: %w", s.from.Address, err)
+		return fmt.Errorf("объявить отправителя: %w", err)
 	}
 
 	if err := client.Rcpt(rcpt); err != nil {
-		return fmt.Errorf("объявить получателя %s: %w", rcpt, err)
+		return fmt.Errorf("объявить получателя: %w", err)
 	}
 
 	return nil

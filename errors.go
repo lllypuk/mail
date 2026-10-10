@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/textproto"
 	"os"
+	"regexp"
 )
 
 // ErrNoTLS — сервер не предлагает STARTTLS; по открытому каналу ушли бы логин и пароль ящика.
@@ -49,8 +50,14 @@ type SendError struct {
 	Err  error
 }
 
+// Error прячет адреса во всём тексте причины: сервер эхом возвращает адрес и в ответах, и в битых строках.
 func (e *SendError) Error() string {
-	return fmt.Sprintf("отправка письма (%s, %s): %v", e.Phase, e.Outcome, e.Err)
+	cause := "<nil>"
+	if e.Err != nil {
+		cause = addressPattern.ReplaceAllString(e.Err.Error(), "***")
+	}
+
+	return fmt.Sprintf("отправка письма (%s, %s): %s", e.Phase, e.Outcome, cause)
 }
 
 func (e *SendError) Unwrap() error { return e.Err }
@@ -75,3 +82,6 @@ func sendError(ctx context.Context, phase Phase, outcome Outcome, err error) *Se
 
 	return &SendError{Phase: phase, Outcome: outcome, Code: code, Err: err}
 }
+
+// addressPattern — слово с @: Postfix и другие эхом возвращают адрес из MAIL и RCPT.
+var addressPattern = regexp.MustCompile(`[^\s<>]+@[^\s<>]+`)

@@ -42,11 +42,13 @@ const (
 	ImplicitTLS
 )
 
-// Options — режим и сценарий сервера; пустая строка ответа — успешный ответ.
+// Options — режим и сценарий сервера; ответ уходит строкой как есть, пустой — успешный ответ.
 type Options struct {
 	Mode Mode
 	// Silent — после приветствия команды читаются без ответа.
 	Silent    bool
+	AuthReply string
+	MailReply string
 	RcptReply string
 	// DataReply — ответ на точку после тела DATA.
 	DataReply string
@@ -238,10 +240,10 @@ func (s *Server) handle(c *conn, verb, arg string) bool {
 	case needTLS && (verb == "AUTH" || verb == "MAIL" || verb == "RCPT" || verb == "DATA"):
 		c.reply("530 5.7.0 STARTTLS first")
 	case verb == "AUTH":
-		return auth(c, arg)
+		return auth(c, arg, s.opts.AuthReply)
 	case verb == "MAIL":
 		c.rec.From = path(arg, "FROM:")
-		c.reply("250 2.1.0 ok")
+		c.reply(orDefault(s.opts.MailReply, "250 2.1.0 ok"))
 	case verb == "RCPT":
 		c.rec.Rcpt = append(c.rec.Rcpt, path(arg, "TO:"))
 		c.reply(orDefault(s.opts.RcptReply, "250 2.1.5 ok"))
@@ -280,7 +282,7 @@ func (s *Server) startTLS(c *conn, allowed bool) bool {
 	return true
 }
 
-func auth(c *conn, arg string) bool {
+func auth(c *conn, arg, reply string) bool {
 	mech, resp, _ := strings.Cut(arg, " ")
 	if !strings.EqualFold(mech, "PLAIN") {
 		c.reply("504 5.5.4 mechanism not supported")
@@ -303,7 +305,13 @@ func auth(c *conn, arg string) bool {
 		return true
 	}
 
-	c.rec.Username, c.rec.Authenticated = parts[1], true
+	c.rec.Username = parts[1]
+	if reply != "" {
+		c.reply(reply)
+		return true
+	}
+
+	c.rec.Authenticated = true
 	c.reply("235 2.7.0 ok")
 
 	return true
