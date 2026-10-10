@@ -18,7 +18,7 @@ import (
 var (
 	// ErrHeaderInjection — перевод строки в заголовочном поле письма или кавычка в имени вложения.
 	ErrHeaderInjection = errors.New("перевод строки в заголовке письма")
-	// ErrInvalidAddress — адресат или Message-ID не разбираются.
+	// ErrInvalidAddress — адресат или Message-ID не разбираются; local-part в кавычках тоже отвергается.
 	ErrInvalidAddress = errors.New("неразборчивый адрес письма")
 )
 
@@ -55,7 +55,7 @@ type Attachment struct {
 func (l Letter) Validate() error {
 	for _, field := range []struct{ name, value string }{
 		{name: "To", value: l.To},
-		// Латинская тема уходит без RFC 2047, вместе с переводами строк.
+		// Encode кодирует CR/LF темы по RFC 2047; проверка — на случай чужой сборки заголовка.
 		{name: "Subject", value: l.Subject},
 		{name: "List-Unsubscribe", value: l.Unsubscribe},
 		{name: "Reply-To", value: l.ReplyTo},
@@ -153,7 +153,7 @@ func (l Letter) Encode(from string) []byte {
 
 // recipient разбирает To; голый Address уходит в RCPT TO.
 func (l Letter) recipient() (*netmail.Address, error) {
-	addr, err := netmail.ParseAddress(l.To)
+	addr, err := parseAddress(l.To)
 	if err != nil {
 		return nil, fmt.Errorf("%w: To %q: %w", ErrInvalidAddress, l.To, err)
 	}
@@ -173,6 +173,24 @@ func (l Letter) headerTo() string {
 	}
 
 	return addr.String()
+}
+
+// errQuotedLocal — local-part, которому нужны кавычки: net/mail снимает их, и RCPT TO с To выходят невалидными.
+var errQuotedLocal = errors.New("local-part в кавычках не поддерживается")
+
+// parseAddress — net/mail.ParseAddress, отвергающий адрес с local-part не вида dot-atom.
+func parseAddress(s string) (*netmail.Address, error) {
+	addr, err := netmail.ParseAddress(s)
+	if err != nil {
+		return nil, err
+	}
+
+	// String квотирует local-part ровно тогда, когда тот не dot-atom.
+	if bare := (&netmail.Address{Address: addr.Address}).String(); bare != "<"+addr.Address+">" {
+		return nil, errQuotedLocal
+	}
+
+	return addr, nil
 }
 
 func validMessageID(id string) bool {

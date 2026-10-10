@@ -201,13 +201,14 @@ func TestLetterRejectsInvalidAddress(t *testing.T) {
 	t.Parallel()
 
 	for name, letter := range map[string]mail.Letter{
-		"пустой To":          {Subject: "Вход", Text: "ссылка"},
-		"To без @":           {To: "hozyain", Subject: "Вход", Text: "ссылка"},
-		"два адресата":       {To: "a@example.com, b@example.com", Subject: "Вход", Text: "ссылка"},
-		"Message-ID без <>":  {To: "a@example.com", MessageID: "id@dpp.example"},
-		"Message-ID без @":   {To: "a@example.com", MessageID: "<id>"},
-		"Message-ID пустой":  {To: "a@example.com", MessageID: "<@dpp.example>"},
-		"Message-ID пробелы": {To: "a@example.com", MessageID: "<a b@dpp.example>"},
+		"пустой To":             {Subject: "Вход", Text: "ссылка"},
+		"To без @":              {To: "hozyain", Subject: "Вход", Text: "ссылка"},
+		"два адресата":          {To: "a@example.com, b@example.com", Subject: "Вход", Text: "ссылка"},
+		"local-part в кавычках": {To: `"dot.and space"@example.com`, Subject: "Вход", Text: "ссылка"},
+		"Message-ID без <>":     {To: "a@example.com", MessageID: "id@dpp.example"},
+		"Message-ID без @":      {To: "a@example.com", MessageID: "<id>"},
+		"Message-ID пустой":     {To: "a@example.com", MessageID: "<@dpp.example>"},
+		"Message-ID пробелы":    {To: "a@example.com", MessageID: "<a b@dpp.example>"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -220,6 +221,10 @@ func TestLetterRejectsInvalidAddress(t *testing.T) {
 
 	if err := letter().Validate(); err != nil {
 		t.Fatalf("корректное письмо отклонено: %v", err)
+	}
+
+	if err := (mail.Letter{To: `"john"@example.com`}).Validate(); err != nil {
+		t.Fatalf("лишние кавычки вокруг dot-atom отклонены: %v", err)
 	}
 }
 

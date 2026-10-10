@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	// ErrInvalidFrom — адрес отправителя из конфигурации не разбирается.
+	// ErrInvalidFrom — адрес отправителя из конфигурации не разбирается или с local-part в кавычках.
 	ErrInvalidFrom = errors.New("некорректный адрес отправителя")
 	// ErrConfig — конфигурация SMTP не годится для соединения.
 	ErrConfig = errors.New("некорректная конфигурация SMTP")
@@ -79,7 +79,7 @@ type SMTP struct {
 
 // NewSMTP проверяет конфигурацию сразу: кривой From роняет старт, а не первое письмо.
 func NewSMTP(cfg Config) (*SMTP, error) {
-	from, err := netmail.ParseAddress(cfg.From)
+	from, err := parseAddress(cfg.From)
 	if err != nil {
 		return nil, fmt.Errorf("%w %q: %w", ErrInvalidFrom, cfg.From, err)
 	}

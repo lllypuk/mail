@@ -30,6 +30,7 @@ func TestNewSMTPRejectsConfig(t *testing.T) {
 	}{
 		{name: "пустой From", mutate: func(c *mail.Config) { c.From = "" }, want: mail.ErrInvalidFrom},
 		{name: "неразборчивый From", mutate: func(c *mail.Config) { c.From = "noreply" }, want: mail.ErrInvalidFrom},
+		{name: "From в кавычках", mutate: func(c *mail.Config) { c.From = `"no reply"@dpp.example` }, want: mail.ErrInvalidFrom},
 		{name: "пустой Host", mutate: func(c *mail.Config) { c.Host = "" }, want: mail.ErrConfig},
 		{name: "порт 0", mutate: func(c *mail.Config) { c.Port = 0 }, want: mail.ErrConfig},
 		{name: "порт 65536", mutate: func(c *mail.Config) { c.Port = 65536 }, want: mail.ErrConfig},
