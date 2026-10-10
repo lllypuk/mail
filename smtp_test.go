@@ -2,6 +2,7 @@ package mail_test
 
 import (
 	"context"
+	"crypto/x509"
 	"errors"
 	netmail "net/mail"
 	"strings"
@@ -177,6 +178,43 @@ func TestSMTPSendDelivers(t *testing.T) {
 			to, err := msg.Header.AddressList("To")
 			if err != nil || len(to) != 1 || to[0].Name != "Иван Петров" || to[0].Address != "ivan@example.com" {
 				t.Fatalf("заголовок To %v: %v", to, err)
+			}
+		})
+	}
+}
+
+func TestSMTPSendRejectsUntrustedCert(t *testing.T) {
+	t.Parallel()
+
+	for name, mode := range map[string]smtptest.Mode{"implicit": smtptest.ImplicitTLS, "starttls": smtptest.StartTLS} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			srv := smtptest.Start(t, smtptest.Options{Mode: mode})
+
+			tlsMode := mail.TLSStartTLS
+			if mode == smtptest.ImplicitTLS {
+				tlsMode = mail.TLSImplicit
+			}
+
+			sender, err := mail.NewSMTP(mail.Config{
+				Host:     smtptest.Host,
+				Port:     srv.Port(),
+				Username: "robot",
+				Password: "secret",
+				From:     "noreply@dpp.example",
+				TLS:      tlsMode,
+				RootCAs:  x509.NewCertPool(),
+			})
+			if err != nil {
+				t.Fatalf("NewSMTP: %v", err)
+			}
+
+			err = sender.Send(t.Context(), testLetter())
+			requireSendError(t, err, mail.PhaseTLS, mail.OutcomeRejected)
+
+			if session := srv.Wait(t); session.Authenticated || session.From != "" {
+				t.Fatalf("с недоверенным сертификатом дошло до AUTH или MAIL: %+v", session)
 			}
 		})
 	}
