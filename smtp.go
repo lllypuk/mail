@@ -81,7 +81,7 @@ type SMTP struct {
 func NewSMTP(cfg Config) (*SMTP, error) {
 	from, err := parseAddress(cfg.From)
 	if err != nil {
-		return nil, fmt.Errorf("%w %q: %w", ErrInvalidFrom, cfg.From, err)
+		return nil, fmt.Errorf("%w: %w", ErrInvalidFrom, err)
 	}
 
 	switch {
@@ -152,14 +152,14 @@ func (s *SMTP) Send(ctx context.Context, letter Letter) error {
 
 	client, err := smtp.NewClient(conn, s.cfg.Host)
 	if err != nil {
-		return sendError(ctx, PhaseDial, OutcomeRejected, fmt.Errorf("поздороваться с %s: %w", s.cfg.Host, err))
+		return sendError(ctx, PhaseDial, OutcomeRejected, fmt.Errorf("поздороваться с %s: %w", s.cfg.Host, masked(err)))
 	}
 
 	defer func() { _ = client.Close() }()
 
 	// Явный EHLO: ленивый внутри Extension глотает отказ, и молчащий сервер выглядел бы как «нет STARTTLS».
 	if err = client.Hello(helloName); err != nil {
-		return sendError(ctx, PhaseDial, OutcomeRejected, fmt.Errorf("EHLO на %s: %w", s.cfg.Host, err))
+		return sendError(ctx, PhaseDial, OutcomeRejected, fmt.Errorf("EHLO на %s: %w", s.cfg.Host, masked(err)))
 	}
 
 	if err = s.startTLS(client); err != nil {
@@ -201,7 +201,7 @@ func (s *SMTP) startTLS(client *smtp.Client) error {
 	}
 
 	if err := client.StartTLS(s.tlsConfig()); err != nil {
-		return fmt.Errorf("перейти на TLS с %s: %w", s.cfg.Host, err)
+		return fmt.Errorf("перейти на TLS с %s: %w", s.cfg.Host, masked(err))
 	}
 
 	return nil
@@ -214,7 +214,7 @@ func (s *SMTP) auth(client *smtp.Client) error {
 	}
 
 	if err := client.Auth(smtp.PlainAuth("", s.cfg.Username, s.cfg.Password, s.cfg.Host)); err != nil {
-		return fmt.Errorf("аутентифицироваться на %s: %w", s.cfg.Host, err)
+		return fmt.Errorf("аутентифицироваться на %s: %w", s.cfg.Host, masked(err))
 	}
 
 	return nil
@@ -222,11 +222,11 @@ func (s *SMTP) auth(client *smtp.Client) error {
 
 func (s *SMTP) envelope(client *smtp.Client, rcpt string) error {
 	if err := client.Mail(s.from.Address); err != nil {
-		return fmt.Errorf("объявить отправителя %s: %w", s.from.Address, err)
+		return fmt.Errorf("объявить отправителя: %w", masked(err))
 	}
 
 	if err := client.Rcpt(rcpt); err != nil {
-		return fmt.Errorf("объявить получателя %s: %w", rcpt, err)
+		return fmt.Errorf("объявить получателя: %w", masked(err))
 	}
 
 	return nil
@@ -236,7 +236,7 @@ func (s *SMTP) envelope(client *smtp.Client, rcpt string) error {
 func data(ctx context.Context, client *smtp.Client, msg []byte) error {
 	w, err := client.Data()
 	if err != nil {
-		return sendError(ctx, PhaseData, OutcomeRejected, fmt.Errorf("начать передачу письма: %w", err))
+		return sendError(ctx, PhaseData, OutcomeRejected, fmt.Errorf("начать передачу письма: %w", masked(err)))
 	}
 
 	if _, err = w.Write(msg); err != nil {
@@ -249,7 +249,7 @@ func data(ctx context.Context, client *smtp.Client, msg []byte) error {
 			outcome = OutcomeRejected
 		}
 
-		return sendError(ctx, PhaseData, outcome, fmt.Errorf("завершить передачу письма: %w", err))
+		return sendError(ctx, PhaseData, outcome, fmt.Errorf("завершить передачу письма: %w", masked(err)))
 	}
 
 	return nil

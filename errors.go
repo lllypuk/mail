@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/textproto"
 	"os"
+	"regexp"
 )
 
 // ErrNoTLS — сервер не предлагает STARTTLS; по открытому каналу ушли бы логин и пароль ящика.
@@ -74,4 +75,25 @@ func sendError(ctx context.Context, phase Phase, outcome Outcome, err error) *Se
 	}
 
 	return &SendError{Phase: phase, Outcome: outcome, Code: code, Err: err}
+}
+
+// addressPattern — слово с @ в ответе сервера: Postfix и другие эхом возвращают адрес из MAIL и RCPT.
+var addressPattern = regexp.MustCompile(`[^\s<>]+@[^\s<>]+`)
+
+// replyError — ответ сервера, в тексте которого адреса заменены на ***; исходный ответ — через Unwrap.
+type replyError struct{ reply *textproto.Error }
+
+func (e *replyError) Error() string {
+	return fmt.Sprintf("%03d %q", e.reply.Code, addressPattern.ReplaceAllString(e.reply.Msg, "***"))
+}
+
+func (e *replyError) Unwrap() error { return e.reply }
+
+// masked прячет адреса в ответе сервера; прочие ошибки возвращает как есть.
+func masked(err error) error {
+	if reply, ok := errors.AsType[*textproto.Error](err); ok {
+		return &replyError{reply: reply}
+	}
+
+	return err
 }

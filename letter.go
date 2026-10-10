@@ -77,7 +77,7 @@ func (l Letter) Validate() error {
 	}
 
 	if l.MessageID != "" && !validMessageID(l.MessageID) {
-		return fmt.Errorf("%w: Message-ID %q", ErrInvalidAddress, l.MessageID)
+		return fmt.Errorf("%w: Message-ID", ErrInvalidAddress)
 	}
 
 	return nil
@@ -155,7 +155,7 @@ func (l Letter) Encode(from string) []byte {
 func (l Letter) recipient() (*netmail.Address, error) {
 	addr, err := parseAddress(l.To)
 	if err != nil {
-		return nil, fmt.Errorf("%w: To %q: %w", ErrInvalidAddress, l.To, err)
+		return nil, fmt.Errorf("%w: To: %w", ErrInvalidAddress, err)
 	}
 
 	return addr, nil
@@ -175,14 +175,18 @@ func (l Letter) headerTo() string {
 	return addr.String()
 }
 
-// errQuotedLocal — local-part, которому нужны кавычки: net/mail снимает их, и RCPT TO с To выходят невалидными.
-var errQuotedLocal = errors.New("local-part в кавычках не поддерживается")
+var (
+	// errQuotedLocal — local-part, которому нужны кавычки: net/mail снимает их, и RCPT TO с To выходят невалидными.
+	errQuotedLocal = errors.New("local-part в кавычках не поддерживается")
+	// errUnparsable подменяет ошибку net/mail: та цитирует куски адреса.
+	errUnparsable = errors.New("не разбирается по RFC 5322")
+)
 
-// parseAddress — net/mail.ParseAddress, отвергающий адрес с local-part не вида dot-atom.
+// parseAddress — net/mail.ParseAddress, отвергающий адрес с local-part не вида dot-atom; адреса в ошибке нет.
 func parseAddress(s string) (*netmail.Address, error) {
 	addr, err := netmail.ParseAddress(s)
 	if err != nil {
-		return nil, err
+		return nil, errUnparsable
 	}
 
 	// String квотирует local-part ровно тогда, когда тот не dot-atom.
