@@ -50,8 +50,11 @@ type SendError struct {
 	Err  error
 }
 
+// Error прячет адреса во всём тексте причины: сервер эхом возвращает адрес и в ответах, и в битых строках.
 func (e *SendError) Error() string {
-	return fmt.Sprintf("отправка письма (%s, %s): %v", e.Phase, e.Outcome, e.Err)
+	cause := addressPattern.ReplaceAllString(e.Err.Error(), "***")
+
+	return fmt.Sprintf("отправка письма (%s, %s): %s", e.Phase, e.Outcome, cause)
 }
 
 func (e *SendError) Unwrap() error { return e.Err }
@@ -77,23 +80,5 @@ func sendError(ctx context.Context, phase Phase, outcome Outcome, err error) *Se
 	return &SendError{Phase: phase, Outcome: outcome, Code: code, Err: err}
 }
 
-// addressPattern — слово с @ в ответе сервера: Postfix и другие эхом возвращают адрес из MAIL и RCPT.
+// addressPattern — слово с @: Postfix и другие эхом возвращают адрес из MAIL и RCPT.
 var addressPattern = regexp.MustCompile(`[^\s<>]+@[^\s<>]+`)
-
-// replyError — ответ сервера, в тексте которого адреса заменены на ***; исходный ответ — через Unwrap.
-type replyError struct{ reply *textproto.Error }
-
-func (e *replyError) Error() string {
-	return fmt.Sprintf("%03d %q", e.reply.Code, addressPattern.ReplaceAllString(e.reply.Msg, "***"))
-}
-
-func (e *replyError) Unwrap() error { return e.reply }
-
-// masked прячет адреса в ответе сервера; прочие ошибки возвращает как есть.
-func masked(err error) error {
-	if reply, ok := errors.AsType[*textproto.Error](err); ok {
-		return &replyError{reply: reply}
-	}
-
-	return err
-}

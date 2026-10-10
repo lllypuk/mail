@@ -2,6 +2,7 @@ package mail_test
 
 import (
 	"errors"
+	"net/textproto"
 	"strings"
 	"testing"
 
@@ -117,6 +118,24 @@ func TestErrorsWithoutAddressFromServer(t *testing.T) {
 			code:   554,
 			reason: "spam",
 		},
+		{
+			name:   "строка без кода",
+			opts:   smtptest.Options{RcptReply: "5.1.1 <ivan@example.com> unknown"},
+			phase:  mail.PhaseEnvelope,
+			reason: "unknown",
+		},
+		{
+			name:   "двоеточие после кода",
+			opts:   smtptest.Options{RcptReply: "550:ivan@example.com rejected"},
+			phase:  mail.PhaseEnvelope,
+			reason: "rejected",
+		},
+		{
+			name:   "скобка вплотную к коду",
+			opts:   smtptest.Options{RcptReply: "550<ivan@example.com>: rejected"},
+			phase:  mail.PhaseEnvelope,
+			reason: "rejected",
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -141,6 +160,13 @@ func TestErrorsWithoutAddressFromServer(t *testing.T) {
 
 			if sendErr.Code != tc.code || !strings.Contains(err.Error(), tc.reason) {
 				t.Fatalf("код %d, текст %q; ожидались %d и причина %q", sendErr.Code, err, tc.code, tc.reason)
+			}
+
+			_, replied := errors.AsType[*textproto.Error](err)
+			_, broken := errors.AsType[textproto.ProtocolError](err)
+
+			if replied != (tc.code != 0) || broken != (tc.code == 0) {
+				t.Fatalf("исходная ошибка сервера не видна через errors.As: %#v", sendErr.Err)
 			}
 
 			requireNoAddress(t, err)
